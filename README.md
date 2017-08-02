@@ -1,14 +1,13 @@
 # systray-portable
-A portable version of go systray, using stdin/stdout to communicate with other language
+A portable version of [go systray](https://github.com/getlantern/systray), using stdin/stdout to communicate with other language
 
 
-## Protocal
+## Protocol
 
 Each line is a json string.
 
-tray binary =>
-=> ready
-  `{"type": "ready"}`
+tray binary =>  
+=> ready  `{"type": "ready"}`  
 <= init menu
 ```json
 {
@@ -27,8 +26,8 @@ tray binary =>
     "enabled": true
   }]}
 ```
-clicked:
-=> clicked
+clicked:  
+=> clicked  
 ```json
 {
   "type":"clicked",
@@ -47,5 +46,5 @@ clicked:
 ```
 
 ## Binary
-main_xxx_release: `go build -ldflags "-s -w" tray.go`
+main_xxx_release: `go build -ldflags "-s -w" tray.go`  
 main_xxx: `go build tray.go`
