@@ -1,8 +1,8 @@
 # Binaries for programs and plugins
-*.exe
-*.dll
-*.so
-*.dylib
+# *.exe
+# *.dll
+# *.so
+# *.dylib
 
 # Test binary, build with `go test -c`
 *.test
@@ -12,3 +12,6 @@
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+src
+bin
+pkg
