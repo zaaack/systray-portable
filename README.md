@@ -26,7 +26,6 @@ tray binary =>
     "enabled": true
   }]}
 ```
-clicked:  
 => clicked  
 ```json
 {
