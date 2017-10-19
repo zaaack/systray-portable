@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/getlantern/systray"
 	"os"
+	"os/signal"
+	"syscall"
 	"reflect"
 )
 
@@ -40,6 +42,9 @@ func readLine(reader *bufio.Reader) string {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
+	if len(input) < 1 {
+		return ""
+	}
 	return string(input[0 : len(input)-1])
 }
 
@@ -50,6 +55,18 @@ func readAction(reader *bufio.Reader) Action {
 }
 
 func onReady() {
+	signalChannel := make(chan os.Signal, 2)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	go func() {
+			sig := <-signalChannel
+			switch sig {
+			case os.Interrupt, syscall.SIGTERM:
+					//handle SIGINT, SIGTERM
+					systray.Quit()
+					os.Exit(0)
+			}
+	}()
+
 	// We can manipulate the systray in other goroutines
 	go func() {
 		items := make([]*systray.MenuItem, 0)
@@ -142,6 +159,7 @@ func onReady() {
 			}
 			items = append(items, menuItem)
 		}
+
 		// {"type": "update-item", "item": {"Title":"aa3","Tooltip":"bb","Enabled":true,"Checked":true}, "seqId": 0}
 		for {
 			cases := make([]reflect.SelectCase, len(items))
