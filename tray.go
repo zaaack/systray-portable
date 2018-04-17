@@ -14,7 +14,11 @@ import (
 
 func main() {
 	// Should be called at the very beginning of main().
-	systray.Run(onReady)
+	systray.Run(onReady, onExit)
+}
+
+func onExit() {
+	os.Exit(0)
 }
 
 type Item struct {
@@ -62,9 +66,10 @@ func onReady() {
 			switch sig {
 			case os.Interrupt, syscall.SIGTERM:
 					//handle SIGINT, SIGTERM
+					fmt.Println("Quit")
 					systray.Quit()
-					os.Exit(0)
-			}
+					// os.Exit(0)
+				}
 	}()
 
 	// We can manipulate the systray in other goroutines
