@@ -5,11 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/getlantern/systray"
+	"io"
 	"os"
 	"os/signal"
-	"syscall"
 	"reflect"
+	"strings"
+	"syscall"
+
+	"github.com/getlantern/systray"
 )
 
 func main() {
@@ -21,12 +24,15 @@ func onExit() {
 	os.Exit(0)
 }
 
+// Item represents an item in the menu
 type Item struct {
 	Title   string `json:"title"`
 	Tooltip string `json:"tooltip"`
 	Enabled bool   `json:"enabled"`
 	Checked bool   `json:"checked"`
 }
+
+// Menu has an icon, title and list of items
 type Menu struct {
 	Icon    string `json:"icon"`
 	Title   string `json:"title"`
@@ -34,27 +40,30 @@ type Menu struct {
 	Items   []Item `json:"items"`
 }
 
+// Action for an item?..
 type Action struct {
 	Type  string `json:"type"`
 	Item  Item   `json:"item"`
 	Menu  Menu   `json:"menu"`
-	SeqId int    `json:"seq_id"`
+	SeqID int    `json:"seq_id"`
 }
 
-func readLine(reader *bufio.Reader) string {
-	input, err := reader.ReadBytes('\n')
+func readLine(reader *bufio.Reader) io.Reader {
+	input, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	if len(input) < 1 {
-		return ""
+		return strings.NewReader("")
 	}
-	return string(input[0 : len(input)-1])
+	return strings.NewReader(input[0 : len(input)-1])
 }
 
 func readAction(reader *bufio.Reader) Action {
 	var action Action
-	json.Unmarshal([]byte(readLine(reader)), &action)
+	if err := json.NewDecoder(readLine(reader)).Decode(&action); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 	return action
 }
 
@@ -62,14 +71,16 @@ func onReady() {
 	signalChannel := make(chan os.Signal, 2)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
-			sig := <-signalChannel
+		for sig := range signalChannel {
 			switch sig {
 			case os.Interrupt, syscall.SIGTERM:
-					//handle SIGINT, SIGTERM
-					fmt.Println("Quit")
-					systray.Quit()
-					// os.Exit(0)
-				}
+				//handle SIGINT, SIGTERM
+				fmt.Println("Quit")
+				systray.Quit()
+			default:
+				fmt.Println("Unhandled signal:", sig)
+			}
+		}
 	}()
 
 	// We can manipulate the systray in other goroutines
@@ -80,7 +91,10 @@ func onReady() {
 		reader := bufio.NewReader(os.Stdin)
 		// println(readLine(reader))
 		var menu Menu
-		json.Unmarshal([]byte(readLine(reader)), &menu)
+		err := json.NewDecoder(readLine(reader)).Decode(&menu)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		// fmt.Println("menu", menu)
 		icon, err := base64.StdEncoding.DecodeString(menu.Icon)
 		if err != nil {
@@ -90,11 +104,10 @@ func onReady() {
 		systray.SetTitle(menu.Title)
 		systray.SetTooltip(menu.Tooltip)
 
-
 		updateItem := func(action Action) {
 			item := action.Item
-			menuItem := items[action.SeqId]
-			menu.Items[action.SeqId] = item
+			menuItem := items[action.SeqID]
+			menu.Items[action.SeqID] = item
 			if item.Checked {
 				menuItem.Check()
 			} else {
@@ -130,7 +143,7 @@ func onReady() {
 			}
 		}
 
-		update := func (action Action)  {
+		update := func(action Action) {
 			switch action.Type {
 			case "update-item":
 				updateItem(action)
@@ -143,7 +156,7 @@ func onReady() {
 		}
 
 		go func(reader *bufio.Reader) {
-			for true {
+			for {
 				action := readAction(reader)
 				update(action)
 			}
@@ -164,8 +177,8 @@ func onReady() {
 			}
 			items = append(items, menuItem)
 		}
-
-		// {"type": "update-item", "item": {"Title":"aa3","Tooltip":"bb","Enabled":true,"Checked":true}, "seqId": 0}
+		stdoutEnc := json.NewEncoder(os.Stdout)
+		// {"type": "update-item", "item": {"Title":"aa3","Tooltip":"bb","Enabled":true,"Checked":true}, "seqID": 0}
 		for {
 			cases := make([]reflect.SelectCase, len(items))
 			for i, ch := range items {
@@ -178,19 +191,18 @@ func onReady() {
 				if !ok {
 					// The chosen channel has been closed, so zero out the channel to disable the case
 					cases[chosen].Chan = reflect.ValueOf(nil)
-					remaining -= 1
+					remaining--
 					continue
 				}
 				// menuItem := items[chosen]
-				data, err := json.Marshal(Action{
+				err := stdoutEnc.Encode(Action{
 					Type:  "clicked",
 					Item:  menu.Items[chosen],
-					SeqId: chosen,
+					SeqID: chosen,
 				})
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 				}
-				fmt.Println(string(data))
 			}
 		}
 	}()
